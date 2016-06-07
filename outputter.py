@@ -23,6 +23,10 @@ cursor = db.cursor()
 #drop Agency Table if it exists
 cursor.execute("DROP TABLE IF EXISTS AGENCY")
 
+
+#read from a CSV File
+
+
 #create the table
 sql = """CREATE TABLE AGENCY(
          agency_id int(10) unsigned NOT NULL,
@@ -48,4 +52,7 @@ try:
 except:
    # Rollback in case there is any error
    db.rollback()
+
+
+
 
