@@ -9,6 +9,8 @@ import datetime
 import MySQLdb
 from sqlalchemy import create_engine
 from sqlalchemy.types import String
+import csv
+import df_helper
 
 #Goal: Use Bart Information to Produce the Task 1 For Bart
 
@@ -182,7 +184,7 @@ another_dataframe.to_sql(con=db, flavor='mysql', name="Routes", if_exists="repla
 #  `is_time_point` int(10) unsigned NOT NULL Default 0,
 # zipfile MD5 -> 'version' varchar(255)
 '''
-print "starting"
+print "starting route_stop_seq"
 try:
     routes_df = pd.read_csv("agencies/bart/routes.txt")
     trips_df = pd.read_csv("agencies/bart/trips.txt")
@@ -192,13 +194,12 @@ except Exception as e:
     print e
 
 columns = ['agency_id', 'route_short_name', 'route_dir',
-           'pattern_id', 'stop_id', 'seq', 'is_time_point', 'version']
+           'pattern_id', 'stop_id', 'seq', 'is_time_point', 'version', 'trip_id']
 
 tables['Route_stop_seq'] = pd.DataFrame()
 for i, row in routes_df.iterrows(): #iterate through the different routes
     route_id = row['route_id']
     patterns = [] #the patterns
-    print row['route_long_name']
     #iterate through trips where trip_id = route_id
     for j, subrow in trips_df.loc[trips_df['route_id'] == route_id].iterrows():
         trip_id = subrow['trip_id'] #get the trip_id
@@ -210,11 +211,10 @@ for i, row in routes_df.iterrows(): #iterate through the different routes
             patterns += [str(sequence)]
         pattern_num = patterns.index(str(sequence)) + 1
         route_short_name = str(optional_field(i, 'route_long_name', routes_df))
-        print route_short_name
         pattern_id = "{0}_{1}_{2}".format(route_short_name, direction_id, pattern_num)
-        print pattern_id
         for k, subsubrow in trip_id_block.iterrows():
             new_row = {}
+            new_row['trip_id'] = trip_id
             new_row['agency_id'] = agency_id
             new_row['route_short_name'] = route_short_name
             new_row['route_dir'] = direction_id
@@ -224,14 +224,21 @@ for i, row in routes_df.iterrows(): #iterate through the different routes
             new_row['is_time_point'] = int(optional_field(k, 'timepoint', stop_times_df, 0))
             new_row['version'] = 1; #replace later
             tables["Route_stop_seq"] = tables["Route_stop_seq"].append(pd.Series(new_row), ignore_index=True)
+        trip2pattern[trip_id] = pattern_id
+#write the trip2pattern to a csv fle
+
+with open('Trip2Pattern.csv', 'wb') as f:
+    writer = csv.writer(f)
+    writer.writerow(["trip_id", "pattern_id"])
+    for key, value in trip2pattern.items():
+        writer.writerow([key, value])
 
 #write the table
-print tables["Route_stop_seq"]
 db = MySQLdb.connect(host="localhost", user="root",
                      passwd="root", db="TrafficTransit")
 tables['Route_stop_seq'].to_sql(con=db, flavor='mysql', name="Route_stop_seq",
                                 if_exists="replace", index=False, chunksize = 10000)
-print "end"
+'''
 '''
 # Table 5: RunPattern
 # # `agency_id` int(10) unsigned NOT NULL,
@@ -250,13 +257,23 @@ try:
     trips_df = pd.read_csv("agencies/bart/trips.txt")
     calendar_df = pd.read_csv("agencies/bart/calendar.txt")
     stop_times_df = pd.read_csv("agencies/bart/stop_times.txt")
+
+    #read the trip_id from the csv
+    if len(trip2pattern) == 0:
+        trip2pattern = df_helper.csv2df("Trip2Pattern.csv")
+    print "Trip2Pattern--------------------"
 except Exception as e:
     print os.getcwd()
     print e
 
 columns = ['agency_id', 'route_short_name', 'start_date', 'end_date', 'service_id', 'day', 'route_dir', 'run', 'pattern_id', 'trip_headsign', 'trip_id', 'version']
-tables['RunPattern'] = pd.DataFrame(index=np.r_[0:len(trips_df.index)], columns=columns)
-day_count = {}
+tables['RunPattern'] =  pd.DataFrame(index=np.r_[0:len(trips_df.index)], columns=columns)
+#run count needs route_short_name and day to be unique, so use 3 keys....key1, maps to key2.
+#Unique Identifiers:  route_short_name, route_dir, day
+#Map identifier: {route_short_name : {service_id : {route_dir: # of unique ones} } }
+#basically a map of a map of a map
+#the first map checks for the route
+run_count = {}
 for i, row in trips_df.iterrows():
     new_row = tables["RunPattern"].loc[i]
     new_row['agency_id'] = 1
@@ -266,23 +283,108 @@ for i, row in trips_df.iterrows():
     calendar = calendar_df.loc[calendar_df['service_id'] == row['service_id']].iloc[0]
     new_row['start_date'] = datetime.datetime.strptime(str(calendar['start_date']), "%Y%m%d")
     new_row['end_date'] = datetime.datetime.strptime(str(calendar['end_date']), "%Y%m%d")
-    new_row['day'] = "{0}{1}{2}{3}{4}{5}{6}".format(calendar['monday'], calendar['tuesday'], calendar['wednesday'], calendar['thursday'], calendar['friday'], calendar['saturday'], calendar['sunday'])
-    if new_row['day'] not in day_count:
-        day_count[new_row['day']] = 1
     new_row['route_dir'] = int(optional_field(i, 'direction_id', trips_df, 0))
-    new_row['run'] = day_count[new_row['day']]
-    day_count[new_row['day']] += 1
-    # new_row['pattern_id'] = trip2pattern[row['trip_id']]
-    new_row['pattern_id'] = 10000
+    new_row['day'] = "{0}{1}{2}{3}{4}{5}{6}".format(calendar['monday'], calendar['tuesday'], calendar['wednesday'], calendar['thursday'], calendar['friday'], calendar['saturday'], calendar['sunday'])
+    # if new_row['day'] not in day_count:
+    #     day_count[new_row['day']] = 1
+    if new_row['route_short_name'] not in run_count.keys():
+        run_count[new_row['route_short_name']] = {new_row['service_id']: {new_row['route_dir'] : 1}}
+
+    if new_row['service_id'] not in run_count[new_row['route_short_name']].keys():
+        run_count[new_row['route_short_name']] = {new_row['service_id']: {new_row['route_dir'] : 1}}
+
+    if new_row['route_dir'] not in run_count[new_row['route_short_name']][new_row['service_id']].keys():
+        run_count[new_row['route_short_name']] = {new_row['service_id']: {new_row['route_dir'] : 1}}
+
+    new_row['run'] = run_count[new_row['route_short_name']][new_row['service_id']][new_row['route_dir']]
+    run_count[new_row['route_short_name']][new_row['service_id']][new_row['route_dir']] += 1 #increment the run because we've seen this before....
+
+    new_row['pattern_id'] = str(trip2pattern[trip2pattern['trip_id'] == row['trip_id']].iloc[0]['pattern_id'])
+
     new_row['trip_headsign'] = optional_field(i, 'trip_headsign', trips_df, stop_times_df.loc[stop_times_df['trip_id'] == row['trip_id']]['stop_headsign'].iloc[0])
     new_row['trip_id'] = str(row['trip_id'])
     new_row['version'] = 1
 db = MySQLdb.connect(host="localhost", user="root",
                      passwd="root", db="TrafficTransit")
-tables['RunPattern'].to_sql(con=db, flavor='mysql', name="RunPattern",
-                                if_exists="replace", index=False, chunksize = 10000)
+tables['RunPattern'].to_sql(con=db, flavor='mysql', name="RunPattern", if_exists="replace", index=False, chunksize=1000)
 print "success"
 #write the runPattern table to the mysqldatabase
+'''
+
+###Schedules: gets some data from RunPattern table
+## Requires: Trip.txt, stop_times.txt
+# CREATE TABLE `Schedules` (
+#   `agency_id` int(10) unsigned NOT NULL,               GIVEN
+#   `route_short_name` varchar(255) NOT NULL,            Trips.txt
+#   `start_date` date NOT NULL,                          Calendar.txt????
+#   `end_date` date NOT NULL,                            Calendar.txt???
+#   `day` char(7) NOT NULL,
+#   `route_dir` int(10) unsigned NOT NULL,
+#   `run` int(10) unsigned NOT NULL,
+#   `pattern_id` varchar(255) NOT NULL,
+#   `seq` int(10) unsigned NOT NULL,
+#   `stop_id` int(10) unsigned NOT NULL,
+#   `is_time_point` int(10) unsigned NOT NULL Default 0,
+#   `pickup_type` int(10) unsigned NOT NULL,
+#   `dropoff_type` int(10) unsigned NOT NULL,
+#   `arrival_time` varchar(10) NOT NULL,
+#   `departure_time` varchar(10) NOT NULL,
+#   `stop_headsign` varchar(255) default NULL,
+#   `trip_id` bigint(20) unsigned NOT NULL,
+#   `version` varchar(255) NOT NULL,
+#    add the arrival and departure time for each one of the trips.
+# for each trip in trips_df
+    #get the run # from run_pattern
+    #get the sequence fo stops from this trip_id
+try:
+    trips_df = pd.read_csv("agencies/bart/trips.txt")
+    stop_times_df = pd.read_csv("agencies/bart/stop_times.txt")
+    #load the RunPatternTable for miscellaneous things
+    login = {'host':"localhost", 'user':"root",
+                     'passwd':"root", 'db': "TrafficTransit"}
+    run_pattern_df = df_helper.sql2df('RunPattern', login)
+    route_stop_seq_df = df_helper.sql2df('Route_stop_seq', login)
+except Exception as e:
+    print os.getcwd()
+    print e
+
+columns = ['agency_id', 'route_short_name', 'start_date', 'end_date', 'day',
+           'route_dir', 'run', 'pattern_id', 'seq', 'stop_id',
+           'is_time_point', 'pickup_type', 'drop_off_type',
+           'arrival_time', 'departure_time', 'stop_headsign', 'trip_id']
+tables["Schedules"] = pd.DataFrame()
+counter = 0
+for a, row in trips_df.iterrows():
+    run_pattern_trip_specific = run_pattern_df[run_pattern_df['trip_id'] == row['trip_id']]
+    route_stop_seq_trip_specific = route_stop_seq_df[route_stop_seq_df['trip_id']
+                                                     == row['trip_id']]
+    stop_times_trip_specific = stop_times_df[stop_times_df['trip_id'] == row['trip_id']]
+    for b, subrow in route_stop_seq_trip_specific.iterrows():
+        new_row = {}
+        new_row['agency_id'] = 1
+        new_row['route_short_name'] = subrow['route_short_name']
+        new_row['start_date'] = run_pattern_trip_specific.iloc[0]['start_date']
+        new_row['end_date'] = run_pattern_trip_specific.iloc[0]['end_date']
+        new_row['day'] = run_pattern_trip_specific.iloc[0]['day']
+        new_row['route_dir'] = subrow['route_dir']
+        new_row['run'] = run_pattern_trip_specific.iloc[0]['run']
+        new_row['pattern_id'] = subrow['pattern_id']
+        new_row['seq'] = subrow['seq']
+        new_row['stop_id'] = subrow['stop_id']
+        new_row['is_time_point'] = subrow['is_time_point']
+        new_row['pickup_type'] = stop_times_trip_specific.iloc[0]['pickup_type']
+        new_row['drop_off_type'] = stop_times_trip_specific.iloc[0]['drop_off_type']
+        new_row['arrival_time'] = stop_times_trip_specific[stop_times_trip_specific['stop_id'] == subrow['stop_id']].iloc[0]['arrival_time']
+        new_row['departure_time'] = stop_times_trip_specific[stop_times_trip_specific['stop_id'] == subrow['stop_id']].iloc[0]['departure_time']
+        new_row['stop_headsign'] = stop_times_trip_specific[stop_times_trip_specific['stop_id'] == subrow['stop_id']].iloc[0]['stop_headsign']
+        new_row['trip_id'] = row['trip_id']
+        tables["Schedules"] = tables["Schedules"].append(pd.Series(new_row), ignore_index=True)
+        counter += 1
+db = MySQLdb.connect(host="localhost", user="root",
+                     passwd="root", db="TrafficTransit")
+tables['Schedules'].to_sql(con=db, flavor='mysql', name="Schedules", if_exists="replace", index=False, chunksize=1000)
 
 
 
+#Table Route_point_Seq
+#
