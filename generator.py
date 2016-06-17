@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import requests
 import zipfile
 import StringIO
@@ -10,7 +12,8 @@ import MySQLdb
 from sqlalchemy import create_engine
 from sqlalchemy.types import String
 import csv
-import df_helper
+import helper
+import googlemaps
 
 #Goal: Use Bart Information to Produce the Task 1 For Bart
 
@@ -264,7 +267,7 @@ zipfile MD5 -> 'version' varchar(255)
 #
     # read the trip_id from the csv
     # if len(trip2pattern) == 0:
-    #     trip2pattern = df_helper.csv2df("Trip2Pattern.csv")
+    #     trip2pattern = helper.csv2df("Trip2Pattern.csv")
     # print "Trip2Pattern--------------------"
 # except Exception as e:
 #     print os.getcwd()
@@ -348,8 +351,8 @@ try:
     #load the RunPatternTable for miscellaneous things
     login = {'host':"localhost", 'user':"root",
                      'passwd':"root", 'db': "TrafficTransit"}
-    run_pattern_df = df_helper.sql2df('RunPattern', login)
-    route_stop_seq_df = df_helper.sql2df('Route_stop_seq', login)
+    run_pattern_df = helper.sql2df('RunPattern', login)
+    route_stop_seq_df = helper.sql2df('Route_stop_seq', login)
 except Exception as e:
     print os.getcwd()
     print e
@@ -457,7 +460,7 @@ try:
     #load the Route_Stop_Seq for miscellaneous things
     login = {'host':"localhost", 'user':"root",
                      'passwd':"root", 'db': "TrafficTransit"}
-    route_stop_seq_df = df_helper.sql2df('Route_stop_seq', login)
+    route_stop_seq_df = helper.sql2df('Route_stop_seq', login)
 except Exception as e:
     print os.getcwd()
     print e
@@ -467,13 +470,20 @@ except Exception as e:
 tables['Route_Point_Seq'] = pd.DataFrame()
 counter = 0
 for a, row in routes_df.iterrows(): #iterate through the different routes
+    if (counter > 1000):
+        break
     route_id = row['route_id']
+    print route_id
     patterns = [] #the patterns
     for b, subrow in trips_df.loc[trips_df['route_id'] == route_id].iterrows():
+        if(counter > 1000):
+            break
         trip_id = subrow['trip_id']
         shape_id = subrow['shape_id'] #get the shape_id of the specific trip
         direction_id = subrow['direction_id'] if 'direction_id' in subrow else 0 #get the direction id in the trip
         shape_id_block = shapes_df.loc[shapes_df['shape_id'] == shape_id]
+        distanceSinceStart = 0 #keep track of distance since start of the trip
+        lastPoint = None
         for c, subsubrow in shape_id_block.iterrows():
             new_row = {}
             new_row['trip_id'] = trip_id
@@ -484,9 +494,24 @@ for a, row in routes_df.iterrows(): #iterate through the different routes
             new_row['shape_id'] =  shape_id
             new_row['shape_pt_sequence'] = subsubrow['shape_pt_sequence']
             new_row['shape_id'] = subsubrow['shape_id']
-            # new_row['length'] =
-            # new_row['heading'] =
-            # new_row['dist'] =
+            #how to calculate the length
+            currentLon = subsubrow['shape_pt_lon']
+            currentLat = subsubrow['shape_pt_lat']
+
+            if lastPoint != None:
+                new_row['length'] = helper.coordToMiles(currentLat, currentLon, lastPoint['current_lat'], lastPoint['current_lon'])
+                distanceSinceStart += new_row['length']
+                #add the length for the cumumulative distance
+                new_row['dist'] = distanceSinceStart
+
+                new_row['heading'] = helper.calculate_heading(currentLat, currentLon, lastPoint['current_lat'],lastPoint['current_lon'])
+                lastPoint = {'current_lat': currentLat, 'current_lon': currentLon}
+            else: #the case where we just start the way point
+                new_row['length']  = 0 # seq i - seq i distance is 0
+                new_row['dist'] = 0
+                lastPoint = {'current_lat': currentLat, 'current_lon': currentLon}
+                new_row['heading'] = "N/A" #the first point doesn't have any heading
+
             new_row['version'] = 1
             counter += 1
             print counter
@@ -496,3 +521,61 @@ print tables["Route_Point_Seq"]
 db = MySQLdb.connect(host="localhost", user="root",
                      passwd="root", db="TrafficTransit")
 tables['Route_Point_Seq'].to_sql(con=db, flavor='mysql', name="Route_Point_Seq", if_exists="replace", index=False)
+
+
+### ----- Task 2  ----------
+# Table Transfers
+# Table schema:
+# CREATE TABLE `Transfers` (
+#   `from_agency_id` int(11) NOT NULL default '-1',
+#   `from_id` int(10) unsigned NOT NULL,
+#   `to_agency_id` int(11) NOT NULL default '-1',
+#   `to_id` int(10) unsigned NOT NULL,
+#   `transfer_type` int(10) unsigned NOT NULL,
+#   `min_transfer_time` int(10) unsigned NOT NULL,
+#   `transfer_dist` int(11) NOT NULL default '0',
+#   PRIMARY KEY  (`from_agency_id`,`from_id`,`to_agency_id`,`to_id`)
+# ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+# Source: GTFS transfers.txt, Route_stop_seq, Stops
+try:
+    #What is shapes_df also had the trips it is a part of?
+    stops_df = pd.read_csv("agencies/bart/stops.txt")
+except Exception as e:
+    print os.getcwd()
+    print e
+
+tables["Transfers"] = pd.DataFrame()
+columns = ['from_agency_id', 'from_id', 'to_agency_id', 'to_id', 'transfer_type',
+           'min_transfer_time', 'transfer_dist']
+max_distance = 0.3 #Miles
+#initiate googlemaps for finding minimum transfer time and transfer distance
+gmaps = googlemaps.Client(key='AIzaSyB_yzsaBUOOo3ukoeDvtjg5Q32IGSkBUvU')
+
+for a, row in stops_df.iterrows():
+    from_id = row['stop_id']
+    stops_in_range = helper.find_nearby_stops(from_id, stops_df, max_distance)
+    for to_id in stops_in_range:
+        new_column = {}
+        new_column['from_agency_id'] = 1 #bart
+        new_column['from_id'] = from_id
+        new_column['to_agency_id'] = 1
+        new_column['to_id'] =  to_id
+        new_column['tranfer_type'] = 0
+
+        #how to get the minimum transfer time
+        new_column['min_transfer_time'] = #the minimum transfer time
+
+
+
+        new_column['tranfer_dist'] =
+
+
+
+
+
+
+
+
+
+### ---- Task 3 -----------------
+
