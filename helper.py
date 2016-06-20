@@ -3,6 +3,7 @@
 from pandas.io import sql
 from math import cos, asin, sqrt
 import math
+import googlemaps
 
 import MySQLdb
 import numpy as np
@@ -71,21 +72,59 @@ def calculate_heading(lat1, lon1, lat2, lon2):
 
     return compass_bearing
 
-#this function takes a stop_id and returns a list of all stops that are within the max_distance
+#this function takes a stop_id and returns a pandas dataframe
 def find_nearby_stops(from_id, stops_df, max_distance):
-    list_of_stops = []
+    dataframe_of_stops = pd.DataFrame()
+    print "wet"
     for a, row in stops_df.iterrows():
         if from_id != row['stop_id']:
-            print "from_id:" + from_id
-            print "to_id" + row['stop_id']
+            print "from_id: " + from_id
+            print "to_id: " + row['stop_id']
             print "----------------------"
             from_id_row = stops_df[stops_df['stop_id'] == from_id].iloc[0]
             lat1, lon1 = from_id_row['stop_lat'], from_id_row['stop_lon']
             lat2, lon2 = row['stop_lat'], row['stop_lon']
-            distance_between = coordToM(lat1, lon1,lat2, lon2)
+            distance_between = google_walking_distance_time(lat1, lon1,lat2, lon2)['distance']
+            print "done"
             if (distance_between < max_distance):
-                list_of_stops.append(row['stop_id'])
-    return list_of_stops
+                new_row = {}
+                new_row['stop_id'] = row['stop_id']
+                new_row['stop_lat'] = row['stop_lat']
+                new_row['stop_lon'] = row['stop_lon']
+                dataframe_of_stops = dataframe_of_stops.append(pd.Series(new_row), ignore_index=True)
+    return dataframe_of_stops
+
+
+
+def meters_to_miles(meters):
+    return meters / 1609.3444
+
+
+
+#returns two things
+#1. totalDistance(Miles)
+#2. totalDuration(seconds) for the trip
+def google_walking_distance_time(lat1, lon1, lat2, lon2):
+    gmaps = googlemaps.Client(key='AIzaSyB_yzsaBUOOo3ukoeDvtjg5Q32IGSkBUvU')
+    routes = gmaps.directions(origin={'lat': lat1, 'lng': lon1},
+                          destination={'lat': lat2, 'lng': lon2},
+                                        mode="walking", units='imperial')
+
+    legs = routes[0]['legs']
+    totalDistance = 0
+    totalDuration = 0
+
+    for x in range(0, len(legs)):
+        totalDistance += meters_to_miles(legs[x]['distance']['value'])
+        totalDuration += legs[x]['duration']['value']
+    return {'distance': totalDistance, 'duration': totalDuration}
+
+
+
+
+
+
+
 
 
 

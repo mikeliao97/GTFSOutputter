@@ -432,7 +432,7 @@ tables['Points'].to_sql(con=db, flavor='mysql', name="Points", if_exists="replac
 print "success points"
 # '''
 
-
+'''
 #Table Route_point_Seq
 # CREATE TABLE `Route_point_seq` (
   # `agency_id` int(10) unsigned NOT NULL,
@@ -521,7 +521,7 @@ print tables["Route_Point_Seq"]
 db = MySQLdb.connect(host="localhost", user="root",
                      passwd="root", db="TrafficTransit")
 tables['Route_Point_Seq'].to_sql(con=db, flavor='mysql', name="Route_Point_Seq", if_exists="replace", index=False)
-
+'''
 
 ### ----- Task 2  ----------
 # Table Transfers
@@ -537,6 +537,7 @@ tables['Route_Point_Seq'].to_sql(con=db, flavor='mysql', name="Route_Point_Seq",
 #   PRIMARY KEY  (`from_agency_id`,`from_id`,`to_agency_id`,`to_id`)
 # ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 # Source: GTFS transfers.txt, Route_stop_seq, Stops
+'''
 try:
     #What is shapes_df also had the trips it is a part of?
     stops_df = pd.read_csv("agencies/bart/stops.txt")
@@ -547,30 +548,33 @@ except Exception as e:
 tables["Transfers"] = pd.DataFrame()
 columns = ['from_agency_id', 'from_id', 'to_agency_id', 'to_id', 'transfer_type',
            'min_transfer_time', 'transfer_dist']
-max_distance = 0.3 #Miles
+max_distance = 3
 #initiate googlemaps for finding minimum transfer time and transfer distance
 gmaps = googlemaps.Client(key='AIzaSyB_yzsaBUOOo3ukoeDvtjg5Q32IGSkBUvU')
 
 for a, row in stops_df.iterrows():
     from_id = row['stop_id']
     stops_in_range = helper.find_nearby_stops(from_id, stops_df, max_distance)
-    for to_id in stops_in_range:
-        new_column = {}
-        new_column['from_agency_id'] = 1 #bart
-        new_column['from_id'] = from_id
-        new_column['to_agency_id'] = 1
-        new_column['to_id'] =  to_id
-        new_column['tranfer_type'] = 0
+    for a, subrow in stops_in_range.iterrows():
+        new_row = {}
+        new_row['from_agency_id'] = 1 #bart
+        new_row['from_id'] = from_id
+        new_row['to_agency_id'] = 1
+        new_row['to_id'] =  subrow['stop_id']
+        new_row['tranfer_type'] = 0
 
         #how to get the minimum transfer time
-        new_column['min_transfer_time'] = #the minimum transfer time
-
-
-
-        new_column['tranfer_dist'] =
-
-
-
+        distance, time = helper.google_walking_distance_time(row['stop_lat'], row['stop_lon'],
+                                                             subrow['stop_lat'], subrow['stop_lon'])
+        new_row['min_transfer_time'] = time
+        #distance returned by google maps
+        new_row['tranfer_dist'] = distance
+        tables["Transfers"] = tables["Transfers"].append(pd.Series(new_row), ignore_index=True)
+print tables["Transfers"]
+db = MySQLdb.connect(host="localhost", user="root",
+                     passwd="root", db="TrafficTransit")
+tables['Transfers'].to_sql(con=db, flavor='mysql', name="Transfers", if_exists="replace", index=False)
+'''
 
 
 
@@ -578,4 +582,6 @@ for a, row in stops_df.iterrows():
 
 
 ### ---- Task 3 -----------------
+columns = ['agency_id', 'veh_id', 'RecordedDate', 'RecordedTime', 'UTC_at_date', 'latitude',
+           'longitude', 'speed', 'course']
 
