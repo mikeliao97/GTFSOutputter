@@ -120,6 +120,9 @@ def google_walking_distance_time(lat1, lon1, lat2, lon2):
     return {'distance': totalDistance, 'duration': totalDuration}
 
 
+def optional_field(index, column, dataframe, default='N/A'):
+    row = dataframe.iloc[index]
+    return row[column] if (column in dataframe.columns and not pd.isnull(row[column])) else default
 
 
 

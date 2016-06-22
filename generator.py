@@ -1,25 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import requests
-import zipfile
-import StringIO
 import os
 import pandas as pd
 import numpy as np
 import pytz
-import datetime
 import MySQLdb
-from sqlalchemy import create_engine
-from sqlalchemy.types import String
-import csv
+from google.transit import gtfs_realtime_pb2
+import urllib
+import datetime
 import helper
-import googlemaps
 
-#Goal: Use Bart Information to Produce the Task 1 For Bart
-
-def optional_field(index, column, dataframe, default='N/A'):
-    row = dataframe.iloc[index]
-    return row[column] if (column in dataframe.columns and not pd.isnull(row[column])) else default
 
 
 
@@ -39,39 +29,36 @@ agency_id = 1 #for bart
 # required string agency_timezone -> 'timezone_name' varchar(45)
 # PRIMARY KEY ('agency_id')
 # KEY ('agency_timezone')
-'''
-# try:
-#     agency_df = pd.read_csv("agencies/bart/agency.txt")
-# except Exception as e:
-#     print os.getcwd()
-#     print e
-#
-# columns = ['agency_id', 'agency_name', 'agency_url', 'agency_timezone', 'agency_lang',
-#            'agency_phone', 'timezone_name']
-# tables['Agency'] = pd.DataFrame(index=np.r_[0:len(agency_df.index)], columns=columns)
-# for i, row in agency_df.iterrows():
-#     new_row = tables["Agency"].loc[i] #instantiate a NEW ROW
-#
-#     new_row['agency_id'] = 1
-#     new_row['agency_name'] = row['agency_name']
-#     new_row['agency_url'] = row['agency_url']
-#     timezone = pytz.timezone(row['agency_timezone'])
-    WHAT IS DIFFERENCE BETWEEN AGENCY TIMEZONE and timezone_name???
+try:
+    agency_df = pd.read_csv("agencies/bart/agency.txt")
+except Exception as e:
+    print os.getcwd()
+    print e
+
+columns = ['agency_id', 'agency_name', 'agency_url', 'agency_timezone', 'agency_lang',
+           'agency_phone', 'timezone_name']
+tables['Agency'] = pd.DataFrame(index=np.r_[0:len(agency_df.index)], columns=columns)
+for i, row in agency_df.iterrows():
+    new_row = tables["Agency"].loc[i] #instantiate a NEW ROW
+
+    new_row['agency_id'] = 1
+    new_row['agency_name'] = row['agency_name']
+    new_row['agency_url'] = row['agency_url']
+    timezone = pytz.timezone(row['agency_timezone'])
     new_row['agency_timezone'] = timezone
-    # new_row['agency_lang'] = optional_field(i, 'agency_lang', agency_df)
-    # new_row['agency_phone'] = optional_field(i, 'agency_phone', agency_df)
-    # new_row['timezone_name'] = row['agency_timezone']
-#
-Now use tables['Agency'] and write it to the database
+    new_row['agency_lang'] = helper.optional_field(i, 'agency_lang', agency_df)
+    new_row['agency_phone'] = helper.optional_field(i, 'agency_phone', agency_df)
+    new_row['timezone_name'] = row['agency_timezone']
+
+# Now use tables['Agency'] and write it to the database
 print tables['Agency'].dtypes
-# another_dataframe = tables['Agency']
-# db = MySQLdb.connect(host="localhost", user="root",
-#                      passwd="root", db="TrafficTransit")
-#
-# another_dataframe.to_sql(con=db, flavor='mysql', name="Agency", if_exists="replace")
-#
-#
-Table 2: Stops
+another_dataframe = tables['Agency']
+db = MySQLdb.connect(host="localhost", user="root",
+                     passwd="root", db="TrafficTransit")
+
+another_dataframe.to_sql(con=db, flavor='mysql', name="Agency", if_exists="replace")
+'''
+# Table 2: Stops
 # int agency_id -> 'agency_id' int(10) unsigned
 # required string stop_id -> 'stop_id' bigint(20) unsigned
 # optional string stop_code -> 'stop_code' varchar(255) default 'N/A'
@@ -99,16 +86,16 @@ print stops_df
 #     new_row = tables["Stops"].loc[i] #instantiate a NEW ROW
 #     new_row['agency_id'] = 1
 #     new_row['stop_id'] = str(row['stop_id'])
-#     new_row['stop_code'] = str(optional_field(i, 'stop_code', stops_df))
+#     new_row['stop_code'] = str(helper.optional_field(i, 'stop_code', stops_df))
 #     new_row['stop_name'] = str(row['stop_name'])
-#     new_row['stop_desc'] = str(optional_field(i, 'stop_desc', stops_df))
+#     new_row['stop_desc'] = str(helper.optional_field(i, 'stop_desc', stops_df))
 #     new_row['stop_lat'] = float(row['stop_lat'])
 #     new_row['stop_lon'] = float(row['stop_lon'])
 #     new_row['lat_lon'] = 0 # some calculations, ignore until using MySQL
-#     new_row['stop_url'] = str(optional_field(i, 'stop_url', stops_df))
-#     new_row['location_type'] = int(optional_field(i, 'location_type', stops_df, 0))
-#     new_row['parent_station'] = int(optional_field(i, 'parent_station', stops_df, 0))
-#     new_row['wheelchair_boarding'] = int(optional_field(i, 'wheelchair_boarding', stops_df, 0))
+#     new_row['stop_url'] = str(helper.optional_field(i, 'stop_url', stops_df))
+#     new_row['location_type'] = int(helper.optional_field(i, 'location_type', stops_df, 0))
+#     new_row['parent_station'] = int(helper.optional_field(i, 'parent_station', stops_df, 0))
+#     new_row['wheelchair_boarding'] = int(helper.optional_field(i, 'wheelchair_boarding', stops_df, 0))
     what the hell is version??
     # new_row['version'] = 1;
 #
@@ -160,14 +147,14 @@ zipfile MD5 -> 'version' varchar(255)
 #     for direction_id in trips_df.loc[trips_df['route_id'] == row['route_id']]['direction_id'].unique():
 #         new_row = {}
 #         new_row['agency_id'] = 1
-#         new_row['route_short_name'] = str(optional_field(i, 'route_short_name', routes_df, routes_df.iloc[i]['route_long_name']))
+#         new_row['route_short_name'] = str(helper.optional_field(i, 'route_short_name', routes_df, routes_df.iloc[i]['route_long_name']))
 #         new_row['route_dir'] = direction_id
 #         new_row['route_type'] = int(row['route_type'])
-#         new_row['route_long_name'] = str(optional_field(i, 'route_long_name', routes_df, routes_df.iloc[i]['route_short_name']))
-#         new_row['route_desc'] = optional_field(i, 'route_desc', routes_df)
-#         new_row['route_url'] = optional_field(i, 'route_url', routes_df)
-#         new_row['route_color'] = optional_field(i, 'route_color', routes_df, default='FFFFFF').upper()
-#         new_row['route_text_color'] = optional_field(i, 'route_text_color', routes_df, default='000000').upper()
+#         new_row['route_long_name'] = str(helper.optional_field(i, 'route_long_name', routes_df, routes_df.iloc[i]['route_short_name']))
+#         new_row['route_desc'] = helper.optional_field(i, 'route_desc', routes_df)
+#         new_row['route_url'] = helper.optional_field(i, 'route_url', routes_df)
+#         new_row['route_color'] = helper.optional_field(i, 'route_color', routes_df, default='FFFFFF').upper()
+#         new_row['route_text_color'] = helper.optional_field(i, 'route_text_color', routes_df, default='000000').upper()
 #         new_row['route_id'] = str(row['route_id'])
 #         new_row['version'] = 1
 #         tables['Routes'] = tables['Routes'].append(pd.Series(new_row), ignore_index=True)
@@ -217,7 +204,7 @@ zipfile MD5 -> 'version' varchar(255)
         # if str(sequence) not in patterns:
         #     patterns += [str(sequence)]
         # pattern_num = patterns.index(str(sequence)) + 1
-        # route_short_name = str(optional_field(i, 'route_long_name', routes_df))
+        # route_short_name = str(helper.optional_field(i, 'route_long_name', routes_df))
         # pattern_id = "{0}_{1}_{2}".format(route_short_name, direction_id, pattern_num)
         # for k, subsubrow in trip_id_block.iterrows():
         #     new_row = {}
@@ -228,7 +215,7 @@ zipfile MD5 -> 'version' varchar(255)
         #     new_row['pattern_id'] = pattern_id
         #     new_row['stop_id'] = str(subsubrow['stop_id'])
         #     new_row['seq'] = subsubrow['stop_sequence']
-        #     new_row['is_time_point'] = int(optional_field(k, 'timepoint', stop_times_df, 0))
+        #     new_row['is_time_point'] = int(helper.optional_field(k, 'timepoint', stop_times_df, 0))
         #     new_row['version'] = 1; #replace later
         #     tables["Route_stop_seq"] = tables["Route_stop_seq"].append(pd.Series(new_row), ignore_index=True)
         # trip2pattern[trip_id] = pattern_id
@@ -285,12 +272,12 @@ zipfile MD5 -> 'version' varchar(255)
 #     new_row = tables["RunPattern"].loc[i]
 #     new_row['agency_id'] = 1
 #     j = np.where(routes_df['route_id'] == row['route_id'])[0][0]
-#     new_row['route_short_name'] = str(optional_field(j, 'route_short_name', routes_df, routes_df.iloc[j]['route_long_name']))
+#     new_row['route_short_name'] = str(helper.optional_field(j, 'route_short_name', routes_df, routes_df.iloc[j]['route_long_name']))
 #     new_row['service_id'] = row['service_id']
 #     calendar = calendar_df.loc[calendar_df['service_id'] == row['service_id']].iloc[0]
 #     new_row['start_date'] = datetime.datetime.strptime(str(calendar['start_date']), "%Y%m%d")
 #     new_row['end_date'] = datetime.datetime.strptime(str(calendar['end_date']), "%Y%m%d")
-#     new_row['route_dir'] = int(optional_field(i, 'direction_id', trips_df, 0))
+#     new_row['route_dir'] = int(helper.optional_field(i, 'direction_id', trips_df, 0))
 #     new_row['day'] = "{0}{1}{2}{3}{4}{5}{6}".format(calendar['monday'], calendar['tuesday'], calendar['wednesday'], calendar['thursday'], calendar['friday'], calendar['saturday'], calendar['sunday'])
 #     if new_row['day'] not in day_count:
     #     day_count[new_row['day']] = 1
@@ -308,7 +295,7 @@ zipfile MD5 -> 'version' varchar(255)
     #
     # new_row['pattern_id'] = str(trip2pattern[trip2pattern['trip_id'] == row['trip_id']].iloc[0]['pattern_id'])
     #
-    # new_row['trip_headsign'] = optional_field(i, 'trip_headsign', trips_df, stop_times_df.loc[stop_times_df['trip_id'] == row['trip_id']]['stop_headsign'].iloc[0])
+    # new_row['trip_headsign'] = helper.optional_field(i, 'trip_headsign', trips_df, stop_times_df.loc[stop_times_df['trip_id'] == row['trip_id']]['stop_headsign'].iloc[0])
     # new_row['trip_id'] = str(row['trip_id'])
     # new_row['version'] = 1
 # db = MySQLdb.connect(host="localhost", user="root",
@@ -488,7 +475,7 @@ for a, row in routes_df.iterrows(): #iterate through the different routes
             new_row = {}
             new_row['trip_id'] = trip_id
             new_row['agency_id'] = agency_id
-            new_row['route_short_name'] = str(optional_field(a, 'route_long_name', routes_df))
+            new_row['route_short_name'] = str(helper.optional_field(a, 'route_long_name', routes_df))
             new_row['route_dir'] = direction_id
             # new_row['pattern_id'] = pattern_id
             new_row['shape_id'] =  shape_id
@@ -564,8 +551,12 @@ for a, row in stops_df.iterrows():
         new_row['tranfer_type'] = 0
 
         #how to get the minimum transfer time
-        distance, time = helper.google_walking_distance_time(row['stop_lat'], row['stop_lon'],
-                                                             subrow['stop_lat'], subrow['stop_lon'])
+        result = helper.google_walking_distance_time(row['stop_lat'], row['stop_lon'],
+                                                       subrow['stop_lat'], subrow['stop_lon'])
+        distance = result['distance']
+        time = result['duration']
+        print distance
+        print time
         new_row['min_transfer_time'] = time
         #distance returned by google maps
         new_row['tranfer_dist'] = distance
@@ -582,6 +573,69 @@ tables['Transfers'].to_sql(con=db, flavor='mysql', name="Transfers", if_exists="
 
 
 ### ---- Task 3 -----------------
+#first sample just using VTA
+'''
 columns = ['agency_id', 'veh_id', 'RecordedDate', 'RecordedTime', 'UTC_at_date', 'latitude',
            'longitude', 'speed', 'course']
+try:
+    feed = gtfs_realtime_pb2.FeedMessage()
+    response = urllib.urlopen('http://api.transitime.org/api/v1/key/5ec0de94/agency/vta/command/gtfs-rt/vehiclePositions')
+    feed.ParseFromString(response.read())
+except Exception as e:
+    print e
+
+tables['gps_fixes'] = pd.DataFrame()
+for entity in feed.entity:
+    new_row = {}
+    new_row['agency_id'] = 11 #VTA
+    new_row['veh_id'] = entity.id
+    new_row['RecordedDate'] = str(datetime.datetime.now().strftime('%Y-%m-%d'))
+    new_row['RecordedTime'] = str(datetime.datetime.now().strftime('%H:%M:%S'))
+    new_row['UTC_at_date'] = str(datetime.datetime.now().strftime('%Y-%m-%d'))
+    new_row['UTC_at_time'] = str(datetime.datetime.now().strftime('%H:%M:%S'))
+    new_row['latitude'] = entity.vehicle.position.latitude
+    new_row['longitude'] = entity.vehicle.position.longitude
+    new_row['speed'] = entity.vehicle.position.speed
+    new_row['course'] = "N/A"
+    tables["gps_fixes"] = tables["gps_fixes"].append(pd.Series(new_row), ignore_index=True)
+db = MySQLdb.connect(host="localhost", user="root",
+                    passwd="root", db="TrafficTransit")
+tables['gps_fixes'].to_sql(con=db, flavor='mysql', name="gps_fixes", if_exists="replace", index=False)
+'''
+
+
+# Table schema:
+# CREATE TABLE `TransitETA` (
+#   `agency_id` int(10) unsigned NOT NULL,
+#   `RecordedDate` date NOT NULL,
+#   `RecordedTime` time NOT NULL,
+#   `veh_id` int(11) NOT NULL,
+#   `veh_lat` double NOT NULL,
+#   `veh_lon` double NOT NULL,
+#   `veh_speed` double NOT NULL,
+#   `veh_location_time` bigint(20) NOT NULL,
+#   `route_short_name` varchar(255) NOT NULL,
+#   `route_dir` int(10) unsigned NOT NULL,
+#   `day` char(7) NOT NULL,
+#   `run` int(10) unsigned NOT NULL,
+#   `pattern_id` varchar(255) NOT NULL,
+#   `top_id` int(10) unsigned NOT NULL,
+#   `seq` int(10) unsigned NOT NULL,
+#   `ETA` time NOT NULL,
+#   PRIMARY KEY  USING BTREE (`agency_id`,`veh_id`,`RecordedDate`,`RecordedTime`,`route_short_name`,`route_dir`,`day`,`run`,`seq`,`ETA`),
+#   KEY `route_short_name` (`route_short_name`),
+#   KEY `RecordedDate` (`RecordedDate`),
+#   KEY `stop_id` (`stop_id`),
+# ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+columns = ['agency_id', 'RecordedDate', 'RecordedTime', 'veh_id', 'veh_lat', 'veh_lon',
+           'veh_speed', 'veh_location_time', 'route_short_name', 'route_dir',
+           'day', 'run', 'pattern_id', 'stop_id', 'seq', 'ETA']
+try:
+    feed = gtfs_realtime_pb2.FeedMessage()
+    response = urllib.urlopen('http://api.transitime.org/api/v1/key/5ec0de94/agency/vta/command/gtfs-rt/vehiclePositions')
+    feed.ParseFromString(response.read())
+except Exception as e:
+    print e
+
+
 
