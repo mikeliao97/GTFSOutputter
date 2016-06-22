@@ -4,10 +4,17 @@ from pandas.io import sql
 from math import cos, asin, sqrt
 import math
 import googlemaps
-
+from google.transit import gtfs_realtime_pb2
 import MySQLdb
-import numpy as np
+import requests
 import pandas as pd
+import transit_agencies
+from os import path
+import os
+from StringIO import StringIO
+import zipfile
+import urllib
+import logging
 
 def csv2df(csv_file):
 	df = pd.read_csv(csv_file, sep = ',', header = 0)
@@ -125,9 +132,79 @@ def optional_field(index, column, dataframe, default='N/A'):
     return row[column] if (column in dataframe.columns and not pd.isnull(row[column])) else default
 
 
+#Get Static Feed
+REQUIRED_GTFS_FILES = ["agency", "stops", "routes", "trips", "stop_times", "calendar"]
+
+def get_static(agency):
+    feed = {}
+
+    pathname = "./agencies/" + agency + "/"
+
+
+    #IF LOCAL FILES EXISTS
+    if path.exists(pathname):
+
+        for f in os.listdir(pathname):
+            if f[-4:] == ".txt" or f[-4:] == ".csv": #if its a txt file
+                with open(pathname + "/" + str(f)) as csvfile:
+                    print "f[:-4] " + f[:-4]
+                    feed[f[:-4]] = csv2df(csvfile)
+
+        return feed
 
 
 
+    #PULL NEW INFORMATION
+    request = requests.get(transit_agencies.get(agency, "static"), stream=True)
+
+    if request.status_code != 200:
+        print "Error! Did not reach"
+
+    if not path.exists(pathname):
+        os.makedirs(pathname)
+
+
+    #Unzip GTFS static
+    buf = request.raw.read()
+    zipdata = StringIO()
+    zipdata.write(buf)
+
+    with open(pathname + "gtfs.zip", "w") as zipout:
+        zipout.write(buf)
+
+    z = zipfile.ZipFile(zipdata)
+    z.extractall(pathname)
+
+
+    # format static feed
+    for f in z.namelist():
+        with z.open(f) as csvfile:
+            feed[f[:-4]] = csv2df(csvfile).rename(columns=lambda s: str(s.decode('ascii', 'ignore')))
+
+    for f in REQUIRED_GTFS_FILES:
+        if f not in feed:
+            print "Incomplete GTFS dataset"
+            return None
+
+    z.close()
+
+    return feed
+
+
+#Get Realtime feed
+def get_realtime(agency, mode):
+    URL = transit_agencies.get(agency, mode)
+    if URL == None or len(URL) == 0:
+        logging.debug("**********************")
+        return None
+    response = urllib.urlopen(URL)
+    feed = gtfs_realtime_pb2.FeedMessage()
+    feed.ParseFromString(response.read())
+    return feed
 
 
 
+def write_table(tables, name):
+    db = MySQLdb.connect(host="localhost", user="root",
+                         passwd="root", db="TrafficTransit")
+    tables[name].to_sql(con=db, flavor='mysql', name=name, if_exists="replace")
