@@ -297,7 +297,7 @@ def transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
         stops_in_range = helper.find_nearby_stops(from_id, static_feed['stops'], max_distance)
         for a, subrow in stops_in_range.iterrows():
             new_row = {}
-            new_row['from_agency_id'] = 1 #bart
+            new_row['from_agency_id'] = agency_id
             new_row['from_id'] = from_id
             new_row['to_agency_id'] = 1
             new_row['to_id'] =  subrow['stop_id']
@@ -324,7 +324,7 @@ def gps_fixes(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
     tables['gps_fixes'] = pd.DataFrame()
     for entity in trip_update_feed.entity:
         new_row = {}
-        new_row['agency_id'] = 11 #VTA
+        new_row['agency_id'] = agency_id
         new_row['veh_id'] = entity.id
         new_row['RecordedDate'] = str(datetime.datetime.now().strftime('%Y-%m-%d'))
         new_row['RecordedTime'] = str(datetime.datetime.now().strftime('%H:%M:%S'))
@@ -340,3 +340,7 @@ def gps_fixes(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
 
 
 def transit_eta(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+    columns = ['agency_id', 'RecordedDate', 'RecordedTime', 'veh_id', 'veh_lat', 'veh_lon', 'veh_speed',
+               'veh_location_time', 'route_short_name', 'route_dir', 'day', 'run', 'pattern_id', 'stop_id', 'seq', 'ETA']
+    tables['TransitETA'] = pd.DataFrame()
+    for entity in trip_update
