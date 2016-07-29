@@ -124,31 +124,21 @@ def runPattern(tables, static_feed,  agency_id):
 
     #open the trip2pattern file
     trip2pattern = helper.csv2df("Trip2Pattern.csv") #load the trip2pattern csv
-
     #iterate through eveyr trip
     for i, row in static_feed['trips'].iterrows():
-
         #get this specific row
         new_row = tables["RunPattern"].loc[i]
         new_row['agency_id'] = agency_id
-
         #getting the name of the route
         j = np.where(static_feed['routes']['route_id'] == row['route_id'])[0][0]
         new_row['route_short_name'] = str(helper.optional_field(j, 'route_short_name', static_feed['routes'], static_feed['routes'].iloc[j]['route_long_name']))
-
-
         #use calendar.txt
         new_row['service_id'] = row['service_id']
-
         calendar = static_feed['calendar'].loc[static_feed['calendar']['service_id'] == row['service_id']].iloc[0]
-
-
         new_row['start_date'] = datetime.datetime.strptime(str(calendar['start_date']), "%Y%m%d")
         new_row['end_date'] = datetime.datetime.strptime(str(calendar['end_date']), "%Y%m%d")
         new_row['route_dir'] = int(helper.optional_field(i, 'direction_id', static_feed['trips'], 0))
         new_row['day'] = "{0}{1}{2}{3}{4}{5}{6}".format(calendar['monday'], calendar['tuesday'], calendar['wednesday'], calendar['thursday'], calendar['friday'], calendar['saturday'], calendar['sunday'])
-
-
         #calculating the runs...Each run is unqiuely identified by
         #1. route_short_name
         #2. service_id
@@ -176,6 +166,7 @@ def runPattern(tables, static_feed,  agency_id):
     print "SUCCESS with RunPatterns"
 
 
+'''
 def schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     try:
         login = {'host': "localhost", 'user': "root",
@@ -239,6 +230,33 @@ def schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
             counter += 1
     helper.write_table(tables, "Schedules")
     print "Sucess with Schedules"
+'''
+
+def schedules2(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+    try:
+        login = {'host': "localhost", 'user': "root",
+                 'passwd': "root", 'db': "TrafficTransit"}
+        run_pattern_df = helper.sql2df('RunPattern', login)
+        agency_name = static_feed['agency'].iloc[0]['agency_name']
+        print agency_name
+        stop_times_df = helper.agency_file_opener_df(agency_name, "stop_times.txt")
+        print stop_times_df
+    except Exception as e:
+        print e
+    columns = ['agency_id', 'route_short_name', 'start_date', 'end_date', 'day',
+               'route_dir', 'run', 'pattern_id', 'seq', 'stop_id',
+               'is_time_point', 'pickup_type', 'drop_off_type',
+               'arrival_time', 'departure_time', 'stop_headsign', 'trip_id']
+    tables["Schedules2"] = pd.DataFrame()
+
+
+
+
+
+
+
+    helper.write_table(tables, "Schedules2")
+    print "Sucess with Schedules2"
 
 def points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     point_id = 0

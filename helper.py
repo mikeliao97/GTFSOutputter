@@ -35,6 +35,22 @@ def sql2df(df_name, login):
 	con.close()
 	return df
 
+#From Static feed pass in the agency name
+#TODO: Revise Function, very unstable
+def agency_file_opener_df(agency_name, fileName):
+    csvFile = ""
+    if agency_name == "Bay Area Rapid Transit":
+        csvFile = "agencies/bart/" + fileName
+    elif agency_name == "VTA":
+        csvFile = "agencies/vta/" + fileName
+    elif agency_name == "Tri Delta Transit":
+        csvFile = "agencies/tri_delta/" + fileName
+    df = pd.read_csv(csvFile, sep = ',', header = 0)
+    df.replace('\"', '')
+    return df
+
+
+
 #implementation of the haversine formula for coordinates
 def coordToM(lat1, lon1, lat2, lon2):
     p = 0.017453292519943295

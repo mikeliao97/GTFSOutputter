@@ -33,7 +33,7 @@ def interpret(agency, static_feed, trip_update_feed, alert_feed, vehicle_positio
 
 
     #Route Stop Seq
-    tablefunctions.route_stop_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    # tablefunctions.route_stop_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
 
     #Run Pattern
@@ -41,24 +41,24 @@ def interpret(agency, static_feed, trip_update_feed, alert_feed, vehicle_positio
 
 
     ###Schedules: gets some data from RunPattern table
-    # tablefunctions.schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    tablefunctions.schedules2(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     #Table Points
     # tablefunctions.points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     #Table Route_point_Seq
-    tablefunctions.route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    # tablefunctions.route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     ### ----- Task 2  ----------
     #Table Transfers
-    tablefunctions.transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    # tablefunctions.transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     ### ---- Task 3 -----------------
     #Table GPS FIXES
-    tablefunctions.gps_fixes(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    # tablefunctions.gps_fixes(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     #Table Transit ETA
-    tablefunctions.transit_eta(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    # tablefunctions.transit_eta(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
 
 def main(argv):
