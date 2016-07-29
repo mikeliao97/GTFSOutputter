@@ -1,5 +1,5 @@
 agency_dict = {
-	"bart": [0, 'http://www.bart.gov/sites/default/files/docs/google_transit_20160208_v1.zip',
+	"bart": [8, 'http://www.bart.gov/sites/default/files/docs/google_transit_20160208_v1.zip',
 		'http://api.bart.gov/gtfsrt/alerts.aspx',
 		'http://api.bart.gov/gtfsrt/tripupdate.aspx',
 		'http://api.transitime.org/api/v1/key/5ec0de94/agency/bart/command/gtfs-rt/vehiclePositions'],

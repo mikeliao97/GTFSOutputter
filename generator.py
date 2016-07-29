@@ -21,18 +21,15 @@ def interpret(agency, static_feed, trip_update_feed, alert_feed, vehicle_positio
     trip2vehicle = {}
     agency_id = transit_agencies.get(agency, "id") #for bart
 
-
     #Agencies
-    tablefunctions.agencies(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id)
-
-
+    # tablefunctions.agencies(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id)
 
     #Stops
-    tablefunctions.stops(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id)
+    # tablefunctions.stops(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id)
 
 
     #Routes
-    tablefunctions.routes(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id)
+    # tablefunctions.routes(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id)
 
 
     #Route Stop Seq
@@ -40,14 +37,14 @@ def interpret(agency, static_feed, trip_update_feed, alert_feed, vehicle_positio
 
 
     #Run Pattern
-    tablefunctions.runPattern(tables=tables, static_feed=static_feed, agency_id=agency_id)
+    # tablefunctions.runPattern(tables=tables, static_feed=static_feed, agency_id=agency_id)
 
 
     ###Schedules: gets some data from RunPattern table
-    tablefunctions.schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    # tablefunctions.schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     #Table Points
-    tablefunctions.points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    # tablefunctions.points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     #Table Route_point_Seq
     tablefunctions.route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
@@ -55,7 +52,6 @@ def interpret(agency, static_feed, trip_update_feed, alert_feed, vehicle_positio
     ### ----- Task 2  ----------
     #Table Transfers
     tablefunctions.transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
-
 
     ### ---- Task 3 -----------------
     #Table GPS FIXES

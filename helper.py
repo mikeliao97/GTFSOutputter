@@ -79,10 +79,9 @@ def calculate_heading(lat1, lon1, lat2, lon2):
 
     return compass_bearing
 
-#this function takes a stop_id and returns a pandas dataframe
+#this function takes a stop_id and returns a pandas dataframe of nearby stops
 def find_nearby_stops(from_id, stops_df, max_distance):
     dataframe_of_stops = pd.DataFrame()
-    print "wet"
     for a, row in stops_df.iterrows():
         if from_id != row['stop_id']:
             print "from_id: " + from_id
@@ -152,8 +151,6 @@ def get_static(agency):
 
         return feed
 
-
-
     #PULL NEW INFORMATION
     request = requests.get(transit_agencies.get(agency, "static"), stream=True)
 
@@ -206,5 +203,7 @@ def get_realtime(agency, mode):
 
 def write_table(tables, name):
     db = MySQLdb.connect(host="localhost", user="root",
-                         passwd="root", db="TrafficTransit")
+                         passwd="root", db="newTable123")
+    # db = MySQLdb.connect(host="http://52.53.208.65", user="root",
+    #     passwd="PATH452RFS", db="TrafficTransit")
     tables[name].to_sql(con=db, flavor='mysql', name=name, if_exists="replace")
