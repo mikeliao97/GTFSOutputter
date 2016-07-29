@@ -232,31 +232,82 @@ def schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
     print "Sucess with Schedules"
 '''
 
-def schedules2(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+def schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     try:
         login = {'host': "localhost", 'user': "root",
                  'passwd': "root", 'db': "TrafficTransit"}
         run_pattern_df = helper.sql2df('RunPattern', login)
         agency_name = static_feed['agency'].iloc[0]['agency_name']
-        print agency_name
-        stop_times_df = helper.agency_file_opener_df(agency_name, "stop_times.txt")
-        print stop_times_df
+        trip2pattern = helper.csv2df("Trip2Pattern.csv") #load the trip2pattern csv
+        route_stop_seq_df = helper.sql2df('route_stop_seq', login)
+
+
     except Exception as e:
         print e
     columns = ['agency_id', 'route_short_name', 'start_date', 'end_date', 'day',
                'route_dir', 'run', 'pattern_id', 'seq', 'stop_id',
                'is_time_point', 'pickup_type', 'drop_off_type',
                'arrival_time', 'departure_time', 'stop_headsign', 'trip_id']
-    tables["Schedules2"] = pd.DataFrame()
+
+    tables["Schedules3"] = pd.DataFrame()
+
+    pattern_id_memoization = {} #to save calculations and memory
+    counter = 0
+    #use the unique tripid's to find the the patternid's specific to that trip
+    for a, row in static_feed['stop_times'].iterrows():
+        print counter
+        counter += 1
+        if counter > 1000:
+            break
+
+        #find the pattern_id(What is the point of pattern id? we already have the stops.)
+        pattern_id = trip2pattern[trip2pattern['trip_id'] == row['trip_id']]['pattern_id']
+        new_row = {}
+
+        #agency_id basic info
+        new_row['agency_id'] = agency_id
 
 
+        #information from pattern_id
+        current_trip_id = row['trip_id']
+
+        if current_trip_id in pattern_id_memoization.keys():
+            new_row['pattern_id'] = pattern_id_memoization[current_trip_id]
+            print current_trip_id
+        else: #access trip2pattern.csv to match the trip_id with the pattern
+            pattern_id = trip2pattern[trip2pattern['trip_id'] == current_trip_id].iloc[0]['pattern_id']
+            pattern_id_memoization[current_trip_id] = pattern_id
+            new_row['pattern_id'] = pattern_id_memoization[current_trip_id]
 
 
+        #get information by matching with route_stop_seq matching by trip_id
+        route_stop_seq_stop_time_specific = route_stop_seq_df[route_stop_seq_df['trip_id'] == current_trip_id].iloc[0]
+        new_row['route_short_name'] = route_stop_seq_stop_time_specific['route_short_name']
+        new_row['route_dir'] = route_stop_seq_stop_time_specific['route_dir']
 
 
+        #get information using run pattern by matching with trip_id
+        run_pattern_stop_time_specific = run_pattern_df[run_pattern_df['trip_id'] == current_trip_id].iloc[0]
+        new_row['start_date'] = run_pattern_stop_time_specific['start_date']
+        new_row['end_date'] = run_pattern_stop_time_specific['end_date']
+        new_row['day'] = run_pattern_stop_time_specific['day']
+        new_row['run'] = run_pattern_stop_time_specific['run']
 
-    helper.write_table(tables, "Schedules2")
-    print "Sucess with Schedules2"
+
+        #all information in stop_times.txt
+        new_row['seq'] = row['stop_sequence']
+        new_row['stop_id'] = row['stop_id']
+        new_row['is_time_point'] = row['timepoint']
+        new_row['pickup_type'] = row['pickup_type']
+        new_row['drop_off_type'] = row['drop_off_type']
+        new_row['arrival_time'] = row['arrival_time']
+        new_row['departure_time'] = row['departure_time']
+        new_row['stop_headsign'] = row['stop_headsign']
+        new_row['trip_id'] = row['trip_id']
+        tables["Schedules3"] = tables["Schedules3"].append(pd.Series(new_row), ignore_index=True)
+
+    helper.write_table(tables, "Schedules3")
+    print "Sucess with Schedules3"
 
 def points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     point_id = 0
@@ -284,7 +335,7 @@ def points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_f
     print "Success with Points"
 
 
-
+'''
 def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     columns = ['agency_id', 'route_short_name', 'route_dir', 'pattern_id', 'shape_id',
                'point_id', 'seq', 'length', 'heading', 'dist', 'version']
@@ -356,6 +407,25 @@ def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_p
     print tables["Route_Point_Seq"]
     helper.write_table(tables, "Route_Point_Seq")
     print "SUCCESS with Route Point Seq"
+'''
+def route_point_seq2(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+    columns = ['agency_id', 'route_short_name', 'route_dir', 'pattern_id', 'shape_id',
+               'point_id', 'seq', 'length', 'heading', 'dist', 'version']
+    try:
+        #What is shapes_df also had the trips it is a part of?
+        #load the Route_Stop_Seq for miscellaneous things
+        login = {'host':"localhost", 'user':"root",
+                         'passwd':"root", 'db': "TrafficTransit"}
+        route_stop_seq_df = helper.sql2df('Route_stop_seq', login)
+    except Exception as e:
+        print os.getcwd()
+        print e
+
+    tables['Route_Point_Seq2'] = pd.DataFrame()
+    counter = 0
+    for a, row in static_feed['routes'].iterrows(): #iterate through the different routes
+
+     print "SUCCESS with Route Point Seq 2"
 
 def transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     tables["Transfers"] = pd.DataFrame()
