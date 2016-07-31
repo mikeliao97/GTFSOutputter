@@ -10,6 +10,9 @@ import googlemaps
 import datetime
 import helper
 import csv
+import prettytable
+from StringIO import StringIO
+
 
 def agencies(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id):
     columns = ['agency_id', 'agency_name', 'agency_url', 'agency_timezone', 'agency_lang',
@@ -335,8 +338,35 @@ def points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_f
     print "Success with Points"
 
 
+
+def big_points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+    point_id = 0
+    big_constant = pow(10, 8)
+    #unique lat and lon define a point. Using a map for uniqueness
+    point_mapper = {}
+    tables['Big_Points'] = pd.DataFrame()
+    for a, row in static_feed['shapes'].iterrows():
+        if (row['shape_pt_lat'] not in point_mapper.keys()) or (row['shape_pt_lon'] not in point_mapper[row['shape_pt_lat']].keys()):
+            new_row = {}
+            new_row['agency_id'] = agency_id
+            new_row['point_lat'] = int(row['shape_pt_lat'] * big_constant)
+            new_row['point_lon'] = int(row['shape_pt_lon'] * big_constant)
+            new_row['shape_id'] = row['shape_id']
+            new_row['shape_pt_sequence'] = row['shape_pt_sequence']
+            new_row['point_id'] = point_id
+            tables["Big_Points"] = tables["Big_Points"].append(pd.Series(new_row), ignore_index=True)
+
+            #add the point the point_mapper
+            point_mapper[row['shape_pt_lat']] = {row['shape_pt_lon'] : "exists"}
+            print point_id
+            point_id += 1
+        else:
+            print 'repeat!'
+    helper.write_table(tables, "Big_Points")
+    print "Success with Big_Points"
+
 '''
-def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+def route_point_seq_old_version(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     columns = ['agency_id', 'route_short_name', 'route_dir', 'pattern_id', 'shape_id',
                'point_id', 'seq', 'length', 'heading', 'dist', 'version']
     try:
@@ -367,7 +397,7 @@ def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_p
             distanceSinceStart = 0 #keep track of distance since start of the trip
             lastPoint = None
             for c, subsubrow in shape_id_block.iterrows():
-                if counter > 1000:
+                if counter > 200:
                     break
                 new_row = {}
                 new_row['trip_id'] = trip_id
@@ -402,30 +432,106 @@ def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_p
                 new_row['version'] = 1
                 counter += 1
                 print counter
+
                 tables["Route_Point_Seq"] = tables["Route_Point_Seq"].append(pd.Series(new_row), ignore_index=True)
 
     print tables["Route_Point_Seq"]
+    tables["Route_Point_Seq"].to_csv("RoutePointSeq1")
     helper.write_table(tables, "Route_Point_Seq")
     print "SUCCESS with Route Point Seq"
+
 '''
-def route_point_seq2(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
-    columns = ['agency_id', 'route_short_name', 'route_dir', 'pattern_id', 'shape_id',
-               'point_id', 'seq', 'length', 'heading', 'dist', 'version']
+
+def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+
     try:
         #What is shapes_df also had the trips it is a part of?
         #load the Route_Stop_Seq for miscellaneous things
         login = {'host':"localhost", 'user':"root",
-                         'passwd':"root", 'db': "TrafficTransit"}
+                         'passwd':"root", 'db': "newTable123"}
         route_stop_seq_df = helper.sql2df('Route_stop_seq', login)
+        big_points_df = helper.sql2df('Big_Points', login)
+        points_df = helper.sql2df('Points', login)
     except Exception as e:
         print os.getcwd()
         print e
 
-    tables['Route_Point_Seq2'] = pd.DataFrame()
     counter = 0
-    for a, row in static_feed['routes'].iterrows(): #iterate through the different routes
 
-     print "SUCCESS with Route Point Seq 2"
+    tables['Route_Point_Seq2'] = pd.DataFrame()
+    columns = ['agency_id', 'route_short_name', 'route_dir', 'pattern_id', 'shape_id',
+               'point_id', 'seq', 'length', 'heading', 'dist', 'version']
+
+    #find a list of unique trips route_stop_seq_df
+    unique_trips = route_stop_seq_df['trip_id'].unique()
+
+    #loop through the route_stop_seq_df
+    for current_trip_id in unique_trips:
+
+        #from route_stop_stop_seq
+        print "current trip id: " + str(current_trip_id)
+        route_info_specific_to_trip = route_stop_seq_df[route_stop_seq_df['trip_id'] == current_trip_id].iloc[0]
+
+        #use the current trip_id to find the shape_id associatd with the trip
+        current_shape_id = static_feed['trips'][static_feed['trips']['trip_id'] == current_trip_id].iloc[0]['shape_id']
+        print "Current_shape_id: " + current_shape_id
+
+        #with the shape_id, you can find a list of way points from shapes.txt
+        waypoints_specific_to_shape_id = static_feed['shapes'][static_feed['shapes']['shape_id'] == current_shape_id]
+        print "WayPoints: "
+        print waypoints_specific_to_shape_id
+        distanceSinceStart = 0 #keep track of distance since start of the trip
+        lastPoint = None
+        for a, row in waypoints_specific_to_shape_id.iterrows():
+            if counter > 5000:
+                break
+            counter += 1
+            print "counter: "+ str(counter)
+            new_row = {}
+
+            #info from route_stop_seq
+            new_row['route_short_name'] = route_info_specific_to_trip['route_short_name']
+            new_row['route_dir'] = route_info_specific_to_trip['trip_id']
+            new_row['pattern_id'] = route_info_specific_to_trip['pattern_id']
+
+            #info from general
+            new_row['trip_id'] = current_trip_id
+            new_row['agency_id'] = agency_id
+            new_row['shape_id'] = current_shape_id
+
+            #info from current waypoints loop
+            new_row['shape_pt_sequence'] = row['shape_pt_sequence']
+            #geting the point_id is incredibly hard because you have to match the point_id with the
+            #current_lon, current_lat with is very technically dificult
+            #how to calculate the length
+            currentLon = row['shape_pt_lon']
+            currentLat = row['shape_pt_lat']
+
+            if lastPoint != None:
+                new_row['length'] = helper.coordToMiles(currentLat, currentLon, lastPoint['current_lat'], lastPoint['current_lon'])
+                distanceSinceStart += new_row['length']
+                #add the length for the cumumulative distance
+                new_row['dist'] = distanceSinceStart
+
+                new_row['heading'] = helper.calculate_heading(currentLat, currentLon, lastPoint['current_lat'],lastPoint['current_lon'])
+                lastPoint = {'current_lat': currentLat, 'current_lon': currentLon}
+            else: #the case where we just start the way point
+                new_row['length']  = 0 # seq i - seq i distance is 0
+                new_row['dist'] = 0
+                lastPoint = {'current_lat': currentLat, 'current_lon': currentLon}
+                new_row['heading'] = "N/A" #the first point doesn't have any heading
+
+            #calculate the point_id based on pt_lon, pt_lon
+            big_constant = pow(10, 8)
+            currentBigLon = int(currentLon * big_constant)
+            currentBigLat = int(currentLat * big_constant)
+            point_id = big_points_df[(big_points_df['point_lat'] == currentBigLat) &
+                                     (big_points_df['point_lon'] == currentBigLon)].iloc[0]['point_id']
+            new_row['point_id'] = point_id
+            tables['Route_Point_Seq2'] = tables['Route_Point_Seq2'].append(pd.Series(new_row), ignore_index=True)
+    print tables['Route_Point_Seq2']
+    helper.write_table(tables, "Route_Point_Seq2")
+    print "SUCCESS with Route Point Seq 2"
 
 def transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     tables["Transfers"] = pd.DataFrame()

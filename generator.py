@@ -41,13 +41,15 @@ def interpret(agency, static_feed, trip_update_feed, alert_feed, vehicle_positio
 
 
     ###Schedules: gets some data from RunPattern table
-    tablefunctions.schedules3(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    # tablefunctions.schedules3(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     #Table Points
     # tablefunctions.points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
+    # tablefunctions.big_points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+
     #Table Route_point_Seq
-    # tablefunctions.route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    tablefunctions.route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     ### ----- Task 2  ----------
     #Table Transfers
