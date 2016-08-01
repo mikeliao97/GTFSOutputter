@@ -436,12 +436,10 @@ def route_point_seq_old_version(tables, static_feed, trip_update_feed, alert_fee
                 tables["Route_Point_Seq"] = tables["Route_Point_Seq"].append(pd.Series(new_row), ignore_index=True)
 
     print tables["Route_Point_Seq"]
-    tables["Route_Point_Seq"].to_csv("RoutePointSeq1")
     helper.write_table(tables, "Route_Point_Seq")
     print "SUCCESS with Route Point Seq"
 
 '''
-
 def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
 
     try:
