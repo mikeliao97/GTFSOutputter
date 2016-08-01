@@ -15,6 +15,7 @@ from StringIO import StringIO
 import zipfile
 import urllib
 import logging
+from math import radians, cos, sin, asin, sqrt
 
 def csv2df(csv_file):
 	df = pd.read_csv(csv_file, sep = ',', header = 0)
@@ -121,8 +122,6 @@ def find_nearby_stops(from_id, stops_df, max_distance):
 def meters_to_miles(meters):
     return meters / 1609.3444
 
-
-
 #returns two things
 #1. totalDistance(Miles)
 #2. totalDuration(seconds) for the trip
@@ -222,4 +221,5 @@ def write_table(tables, name):
                          passwd="root", db="newTable123")
     # db = MySQLdb.connect(host="http://52.53.208.65", user="root",
     #     passwd="PATH452RFS", db="TrafficTransit")
-    tables[name].to_sql(con=db, flavor='mysql', name=name, if_exists="replace")
+    # tables[name].to_sql(con=db, flavor='mysql', name=name, if_exists="replace")
+    # tables[name].to_sql(con=db, flavor='mysql', name=name, if_exists="replace")

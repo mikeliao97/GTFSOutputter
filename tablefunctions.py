@@ -570,6 +570,78 @@ def transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
     helper.write_table(tables, "Transfers")
     print "SUCCESS with Transfers"
 
+def transfers2(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+    tables["Transfers2"] = pd.DataFrame()
+    columns = ['from_agency_id', 'from_id', 'to_agency_id', 'to_id', 'transfer_type',
+               'min_transfer_time', 'transfer_dist']
+    max_distance = 3  #this is in miles
+    #initiate googlemaps for finding minimum transfer time and transfer distance
+    gmaps = googlemaps.Client(key='AIzaSyB_yzsaBUOOo3ukoeDvtjg5Q32IGSkBUvU')
+
+    #loop through unique patterns in route_stop_seq
+    try:
+        #What is shapes_df also had the trips it is a part of?
+        #load the Route_Stop_Seq for miscellaneous things
+        login = {'host':"localhost", 'user':"root",
+                         'passwd':"root", 'db': "newTable123"}
+        route_stop_seq_df = helper.sql2df('Route_stop_seq', login)
+    except Exception as e:
+        print os.getcwd()
+        print e
+    counter = 0
+    using_google_maps = False
+
+    #get the unique list of patterns
+    unique_patterns = route_stop_seq_df['pattern_id'].unique()
+
+    #iterate through the unique list of patterns
+    for from_pattern in unique_patterns:  #get one side of the pattern
+        if counter > 1000:
+            break
+
+        #get stop id's associated with the from_pattern
+        from_pattern_stops = route_stop_seq_df[route_stop_seq_df['pattern_id'] == from_pattern]['stop_id']
+
+        for to_pattern in unique_patterns: #get the other pattern
+            if from_pattern != to_pattern:
+
+                #get stop_id's assoicated with the to_pattern
+                to_pattern_stops = route_stop_seq_df[route_stop_seq_df['pattern_id'] == to_pattern]['stop_id']
+
+                #now you have two lists of stops from different patterns, iterate through this list of stops
+                for from_pattern_stop in from_pattern_stops:
+                    for to_pattern_stop in to_pattern_stops:
+                        from_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
+                                                                       == from_pattern_stop].iloc[0]
+                        to_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
+                                                                       == to_pattern_stop].iloc[0]
+
+                        if using_google_maps:
+                            distance_time_result = helper.google_walking_distance_time(from_stop_coord['stop_lat'], from_stop_coord['stop_lon'],
+                                                                                       to_stop_coord['stop_lat'], to_stop_coord['stop_lon'])
+                        else:
+                            distance_time_result = {}
+                            distance_time_result['distance'] = helper.coordToMiles(from_stop_coord['stop_lat'], from_stop_coord['stop_lon'],
+                                                                                       to_stop_coord['stop_lat'], to_stop_coord['stop_lon'])
+                            distance_time_result['duration'] = "Time Estimation N/A"
+
+                        if distance_time_result['distance'] < max_distance: #if the distance is within boundaries add a new row
+                            print distance_time_result
+                            counter += 1
+
+                            print "counter: " + str(counter)
+                            new_row = {}
+                            new_row['from_agency_id'] = agency_id
+                            new_row['from_id'] = from_pattern_stop
+                            new_row['to_agency_id'] = 1
+                            new_row['to_id'] = to_pattern_stop
+                            new_row['tranfer_type'] = 0
+                            new_row['min_transfer_time'] = distance_time_result['duration']
+                            new_row['transfer_dist'] = distance_time_result['distance']
+                            tables["Transfers2"] = tables["Transfers2"].append(pd.Series(new_row), ignore_index=True)
+
+    helper.write_table(tables, "Transfers2")
+    print "SUCCESS with Transfers2"
 
 def gps_fixes(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     columns = ['agency_id', 'veh_id', 'RecordedDate', 'RecordedTime', 'UTC_at_date', 'latitude',

@@ -49,11 +49,12 @@ def interpret(agency, static_feed, trip_update_feed, alert_feed, vehicle_positio
     # tablefunctions.big_points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     #Table Route_point_Seq
-    tablefunctions.route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    # tablefunctions.route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     ### ----- Task 2  ----------
     #Table Transfers
     # tablefunctions.transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
+    tablefunctions.transfers2(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id=agency_id, trip2pattern=trip2pattern)
 
     ### ---- Task 3 -----------------
     #Table GPS FIXES
