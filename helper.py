@@ -22,11 +22,11 @@ def csv2df(csv_file):
 	df.replace('\"', '')
 	return df
 
-def df2sql(dataframe, df_name, login, exist_flag='append'):
-	con = MySQLdb.connect(host=login['host'], user=login['user'], passwd=login['passwd'], db=login['db'])
-	# seems to have no way to tell what types each column should be
-	dataframe.to_sql(con=con, name=df_name, flavor='mysql', if_exists=exist_flag, index=False)
-	con.close()
+# def df2sql(dataframe, df_name, login, exist_flag='append'):
+# 	con = MySQLdb.connect(host=login['host'], user=login['user'], passwd=login['passwd'], db=login['db'])
+# 	seems to have no way to tell what types each column should be
+	# dataframe.to_sql(con=con, name=df_name, flavor='mysql', if_exists=exist_flag, index=False)
+	# con.close()
 
 def sql2df(df_name, login):
 	con = MySQLdb.connect(host=login['host'], user=login['user'], passwd=login['passwd'], db=login['db'])
@@ -35,22 +35,6 @@ def sql2df(df_name, login):
 	df.replace('\"', '')
 	con.close()
 	return df
-
-#From Static feed pass in the agency name
-#TODO: Revise Function, very unstable
-def agency_file_opener_df(agency_name, fileName):
-    csvFile = ""
-    if agency_name == "Bay Area Rapid Transit":
-        csvFile = "agencies/bart/" + fileName
-    elif agency_name == "VTA":
-        csvFile = "agencies/vta/" + fileName
-    elif agency_name == "Tri Delta Transit":
-        csvFile = "agencies/tri_delta/" + fileName
-    df = pd.read_csv(csvFile, sep = ',', header = 0)
-    df.replace('\"', '')
-    return df
-
-
 
 #implementation of the haversine formula for coordinates
 def coordToM(lat1, lon1, lat2, lon2):
@@ -97,25 +81,25 @@ def calculate_heading(lat1, lon1, lat2, lon2):
     return compass_bearing
 
 #this function takes a stop_id and returns a pandas dataframe of nearby stops
-def find_nearby_stops(from_id, stops_df, max_distance):
-    dataframe_of_stops = pd.DataFrame()
-    for a, row in stops_df.iterrows():
-        if from_id != row['stop_id']:
-            print "from_id: " + from_id
-            print "to_id: " + row['stop_id']
-            print "----------------------"
-            from_id_row = stops_df[stops_df['stop_id'] == from_id].iloc[0]
-            lat1, lon1 = from_id_row['stop_lat'], from_id_row['stop_lon']
-            lat2, lon2 = row['stop_lat'], row['stop_lon']
-            distance_between = google_walking_distance_time(lat1, lon1,lat2, lon2)['distance']
-            print "done"
-            if (distance_between < max_distance):
-                new_row = {}
-                new_row['stop_id'] = row['stop_id']
-                new_row['stop_lat'] = row['stop_lat']
-                new_row['stop_lon'] = row['stop_lon']
-                dataframe_of_stops = dataframe_of_stops.append(pd.Series(new_row), ignore_index=True)
-    return dataframe_of_stops
+# def find_nearby_stops(from_id, stops_df, max_distance):
+#     dataframe_of_stops = pd.DataFrame()
+#     for a, row in stops_df.iterrows():
+#         if from_id != row['stop_id']:
+#             print "from_id: " + from_id
+#             print "to_id: " + row['stop_id']
+#             print "----------------------"
+#             from_id_row = stops_df[stops_df['stop_id'] == from_id].iloc[0]
+#             lat1, lon1 = from_id_row['stop_lat'], from_id_row['stop_lon']
+#             lat2, lon2 = row['stop_lat'], row['stop_lon']
+#             distance_between = google_walking_distance_time(lat1, lon1,lat2, lon2)['distance']
+#             print "done"
+#             if (distance_between < max_distance):
+#                 new_row = {}
+#                 new_row['stop_id'] = row['stop_id']
+#                 new_row['stop_lat'] = row['stop_lat']
+#                 new_row['stop_lon'] = row['stop_lon']
+#                 dataframe_of_stops = dataframe_of_stops.append(pd.Series(new_row), ignore_index=True)
+#     return dataframe_of_stops
 
 
 
@@ -145,7 +129,6 @@ def optional_field(index, column, dataframe, default='N/A'):
     row = dataframe.iloc[index]
     return row[column] if (column in dataframe.columns and not pd.isnull(row[column])) else default
 
-
 #Get Static Feed
 REQUIRED_GTFS_FILES = ["agency", "stops", "routes", "trips", "stop_times", "calendar"]
 
@@ -157,7 +140,6 @@ def get_static(agency):
 
     #IF LOCAL FILES EXISTS
     if path.exists(pathname):
-
         for f in os.listdir(pathname):
             if f[-4:] == ".txt" or f[-4:] == ".csv": #if its a txt file
                 with open(pathname + "/" + str(f)) as csvfile:
@@ -218,8 +200,8 @@ def get_realtime(agency, mode):
 
 def write_table(tables, name):
     db = MySQLdb.connect(host="localhost", user="root",
-                         passwd="root", db="newTable123")
+                         passwd="root", db="TrafficTransit")
     # db = MySQLdb.connect(host="http://52.53.208.65", user="root",
     #     passwd="PATH452RFS", db="TrafficTransit")
-    # tables[name].to_sql(con=db, flavor='mysql', name=name, if_exists="replace")
+    tables[name].to_sql(con=db, flavor='mysql', name=name, if_exists="replace")
     # tables[name].to_sql(con=db, flavor='mysql', name=name, if_exists="replace")

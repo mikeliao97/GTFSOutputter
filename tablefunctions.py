@@ -12,6 +12,7 @@ import helper
 import csv
 import prettytable
 from StringIO import StringIO
+import sqlalchemy
 
 
 def agencies(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id):
@@ -34,24 +35,31 @@ def agencies(tables, static_feed, trip_update_feed, alert_feed, vehicle_position
 def stops(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id):
     columns = ['agency_id', 'stop_id', 'stop_code', 'stop_name', 'stop_desc', 'stop_lat', 'stop_lon',
                'lat_lon', 'stop_url', 'location_type', 'parent_station', 'wheelchair_boarding', 'version']
-    tables['Stops'] = pd.DataFrame(index=np.r_[0:len(static_feed['stops'].index)], columns=columns)
+    # tables['Stops'] = pd.DataFrame(index=np.r_[0:len(static_feed['stops'].index)], columns=columns)
+    tables['Stops'] = pd.DataFrame()
+
+    print static_feed['stops'].columns
     for i, row in static_feed['stops'].iterrows():
-        new_row = tables["Stops"].loc[i] #instantiate a NEW ROW
+        new_row = {}
         new_row['agency_id'] = agency_id
-        new_row['stop_id'] = str(row['stop_id'])
+        # new_row['stop_id'] = str(row['stop_id'])
+        # print "Name of first row: " + row.index[0]
+        if row.index[0] == 'stop_id':
+            new_row['stop_id'] = row['stop_id']
+        else:
+            new_row['stop_id'] = row[0]
+
         new_row['stop_code'] = str(helper.optional_field(i, 'stop_code', static_feed['stops']))
         new_row['stop_name'] = str(row['stop_name'])
         new_row['stop_desc'] = str(helper.optional_field(i, 'stop_desc', static_feed['stops']))
         new_row['stop_lat'] = float(row['stop_lat'])
         new_row['stop_lon'] = float(row['stop_lon'])
-
-        new_row['lat_lon'] = 0
-
-        new_row['stop_url'] = str(helper.optional_field(i, 'stop_url', static_feed['stops']))
+        # new_row['stop_url'] = str(helper.optional_field(i, 'stop_url', static_feed['stops']))
         new_row['location_type'] = int(helper.optional_field(i, 'location_type', static_feed['stops'], 0))
         new_row['parent_station'] = int(helper.optional_field(i, 'parent_station', static_feed['stops'], 0))
         new_row['wheelchair_boarding'] = int(helper.optional_field(i, 'wheelchair_boarding', static_feed['stops'], 0))
-    helper.write_table(tables, 'Stops')
+        tables['Stops'] = tables['Stops'].append(pd.Series(new_row), ignore_index=True)
+    helper.write_table(tables, "Stops")
     print "SUCCESS with stops"
 
 def routes(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id):
@@ -162,7 +170,7 @@ def runPattern(tables, static_feed,  agency_id):
 
         new_row['pattern_id'] = str(trip2pattern[trip2pattern['trip_id'] == row['trip_id']].iloc[0]['pattern_id'])
 
-        new_row['trip_headsign'] = helper.optional_field(i, 'trip_headsign', static_feed['trips'], static_feed['stop_times'].loc[static_feed['stop_times']['trip_id'] == row['trip_id']]['stop_headsign'].iloc[0])
+        # new_row['trip_headsign'] = helper.optional_field(i, 'trip_headsign', static_feed['trips'], static_feed['stop_times'].loc[static_feed['stop_times']['trip_id'] == row['trip_id']]['stop_headsign'].iloc[0])
         new_row['trip_id'] = str(row['trip_id'])
         new_row['version'] = 1
     helper.write_table(tables, 'RunPattern')
@@ -252,7 +260,7 @@ def schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
                'is_time_point', 'pickup_type', 'drop_off_type',
                'arrival_time', 'departure_time', 'stop_headsign', 'trip_id']
 
-    tables["Schedules3"] = pd.DataFrame()
+    tables["Schedules"] = pd.DataFrame()
 
     pattern_id_memoization = {} #to save calculations and memory
     counter = 0
@@ -260,8 +268,6 @@ def schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
     for a, row in static_feed['stop_times'].iterrows():
         print counter
         counter += 1
-        if counter > 1000:
-            break
 
         #find the pattern_id(What is the point of pattern id? we already have the stops.)
         pattern_id = trip2pattern[trip2pattern['trip_id'] == row['trip_id']]['pattern_id']
@@ -282,35 +288,45 @@ def schedules(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
             pattern_id_memoization[current_trip_id] = pattern_id
             new_row['pattern_id'] = pattern_id_memoization[current_trip_id]
 
-
+        print "current trip id: " + str(current_trip_id)
+        # print route_stop_seq_df
         #get information by matching with route_stop_seq matching by trip_id
-        route_stop_seq_stop_time_specific = route_stop_seq_df[route_stop_seq_df['trip_id'] == current_trip_id].iloc[0]
-        new_row['route_short_name'] = route_stop_seq_stop_time_specific['route_short_name']
-        new_row['route_dir'] = route_stop_seq_stop_time_specific['route_dir']
+        route_stop_seq_stop_time_specific = route_stop_seq_df[route_stop_seq_df['trip_id'] == current_trip_id]
+        if not route_stop_seq_stop_time_specific.empty:
+            route_stop_seq_stop_time_specific = route_stop_seq_stop_time_specific.iloc[0]
+            new_row['route_short_name'] = route_stop_seq_stop_time_specific['route_short_name']
+            new_row['route_dir'] = route_stop_seq_stop_time_specific['route_dir']
 
 
         #get information using run pattern by matching with trip_id
-        run_pattern_stop_time_specific = run_pattern_df[run_pattern_df['trip_id'] == current_trip_id].iloc[0]
-        new_row['start_date'] = run_pattern_stop_time_specific['start_date']
-        new_row['end_date'] = run_pattern_stop_time_specific['end_date']
-        new_row['day'] = run_pattern_stop_time_specific['day']
-        new_row['run'] = run_pattern_stop_time_specific['run']
+        run_pattern_stop_time_specific = run_pattern_df[run_pattern_df['trip_id'] == current_trip_id]
+        if not run_pattern_stop_time_specific.empty:
+            run_pattern_stop_time_specific = run_pattern_stop_time_specific.iloc[0]
+            new_row['start_date'] = run_pattern_stop_time_specific['start_date']
+            new_row['end_date'] = run_pattern_stop_time_specific['end_date']
+            new_row['day'] = run_pattern_stop_time_specific['day']
+            new_row['run'] = run_pattern_stop_time_specific['run']
 
 
         #all information in stop_times.txt
         new_row['seq'] = row['stop_sequence']
         new_row['stop_id'] = row['stop_id']
-        new_row['is_time_point'] = row['timepoint']
-        new_row['pickup_type'] = row['pickup_type']
-        new_row['drop_off_type'] = row['drop_off_type']
+        #time point is optional
+        new_row['is_time_point'] = helper.optional_field(a, 'time_point', static_feed['stop_times'])
+        # new_row['is_time_point'] = row['timepoint']
+        new_row['pickup_type'] = helper.optional_field(a, 'pickup_type', static_feed['stop_times'])
+        # new_row['pickup_type'] = row['pickup_type']
+        # new_row['drop_off_type'] = row['drop_off_type']
+        new_row['pickup_type'] = helper.optional_field(a, 'drop_off_type', static_feed['stop_times'])
         new_row['arrival_time'] = row['arrival_time']
         new_row['departure_time'] = row['departure_time']
-        new_row['stop_headsign'] = row['stop_headsign']
+        # new_row['stop_headsign'] = row['stop_headsign']
+        new_row['stop_headsign'] = helper.optional_field(a, 'stop_headsign', static_feed['stop_times'])
         new_row['trip_id'] = row['trip_id']
-        tables["Schedules3"] = tables["Schedules3"].append(pd.Series(new_row), ignore_index=True)
+        tables["Schedules"] = tables["Schedules"].append(pd.Series(new_row), ignore_index=True)
 
-    helper.write_table(tables, "Schedules3")
-    print "Sucess with Schedules3"
+    helper.write_table(tables, "Schedules")
+    print "Sucess with Schedules"
 
 def points(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     point_id = 0
@@ -446,7 +462,7 @@ def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_p
         #What is shapes_df also had the trips it is a part of?
         #load the Route_Stop_Seq for miscellaneous things
         login = {'host':"localhost", 'user':"root",
-                         'passwd':"root", 'db': "newTable123"}
+                         'passwd':"root", 'db': "TrafficTransit"}
         route_stop_seq_df = helper.sql2df('Route_stop_seq', login)
         big_points_df = helper.sql2df('Big_Points', login)
         points_df = helper.sql2df('Points', login)
@@ -472,7 +488,7 @@ def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_p
 
         #use the current trip_id to find the shape_id associatd with the trip
         current_shape_id = static_feed['trips'][static_feed['trips']['trip_id'] == current_trip_id].iloc[0]['shape_id']
-        print "Current_shape_id: " + current_shape_id
+        print "Current_shape_id: " + str(current_shape_id)
 
         #with the shape_id, you can find a list of way points from shapes.txt
         waypoints_specific_to_shape_id = static_feed['shapes'][static_feed['shapes']['shape_id'] == current_shape_id]
@@ -481,8 +497,6 @@ def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_p
         distanceSinceStart = 0 #keep track of distance since start of the trip
         lastPoint = None
         for a, row in waypoints_specific_to_shape_id.iterrows():
-            if counter > 5000:
-                break
             counter += 1
             print "counter: "+ str(counter)
             new_row = {}
@@ -531,7 +545,7 @@ def route_point_seq(tables, static_feed, trip_update_feed, alert_feed, vehicle_p
     helper.write_table(tables, "Route_Point_Seq2")
     print "SUCCESS with Route Point Seq 2"
 
-def transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+def transfers_old_version(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     tables["Transfers"] = pd.DataFrame()
     columns = ['from_agency_id', 'from_id', 'to_agency_id', 'to_id', 'transfer_type',
                'min_transfer_time', 'transfer_dist']
@@ -570,8 +584,8 @@ def transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_positio
     helper.write_table(tables, "Transfers")
     print "SUCCESS with Transfers"
 
-def transfers2(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
-    tables["Transfers2"] = pd.DataFrame()
+def transfers(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
+    tables["Transfers"] = pd.DataFrame()
     columns = ['from_agency_id', 'from_id', 'to_agency_id', 'to_id', 'transfer_type',
                'min_transfer_time', 'transfer_dist']
     max_distance = 3  #this is in miles
@@ -583,7 +597,7 @@ def transfers2(tables, static_feed, trip_update_feed, alert_feed, vehicle_positi
         #What is shapes_df also had the trips it is a part of?
         #load the Route_Stop_Seq for miscellaneous things
         login = {'host':"localhost", 'user':"root",
-                         'passwd':"root", 'db': "newTable123"}
+                         'passwd':"root", 'db': "TrafficTransit"}
         route_stop_seq_df = helper.sql2df('Route_stop_seq', login)
     except Exception as e:
         print os.getcwd()
@@ -594,10 +608,9 @@ def transfers2(tables, static_feed, trip_update_feed, alert_feed, vehicle_positi
     #get the unique list of patterns
     unique_patterns = route_stop_seq_df['pattern_id'].unique()
 
+
     #iterate through the unique list of patterns
     for from_pattern in unique_patterns:  #get one side of the pattern
-        if counter > 1000:
-            break
 
         #get stop id's associated with the from_pattern
         from_pattern_stops = route_stop_seq_df[route_stop_seq_df['pattern_id'] == from_pattern]['stop_id']
@@ -611,11 +624,21 @@ def transfers2(tables, static_feed, trip_update_feed, alert_feed, vehicle_positi
                 #now you have two lists of stops from different patterns, iterate through this list of stops
                 for from_pattern_stop in from_pattern_stops:
                     for to_pattern_stop in to_pattern_stops:
-                        from_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
-                                                                       == from_pattern_stop].iloc[0]
-                        to_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
-                                                                       == to_pattern_stop].iloc[0]
-
+                        if agency_id == 11: #if it's TriDelta, coerce from_pattern_stop to Int
+                            from_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
+                                                                           == int(from_pattern_stop)].iloc[0]
+                            to_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
+                                                                           == int(to_pattern_stop)].iloc[0]
+                        elif agency_id == 8: #if it's bart, then leave it as a string
+                            from_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
+                                                                           == from_pattern_stop].iloc[0]
+                            to_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
+                                                                           == to_pattern_stop].iloc[0]
+                        else:
+                            from_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
+                                                                           == from_pattern_stop].iloc[0]
+                            to_stop_coord = static_feed['stops'][static_feed['stops']['stop_id']
+                                                                           == to_pattern_stop].iloc[0]
                         if using_google_maps:
                             distance_time_result = helper.google_walking_distance_time(from_stop_coord['stop_lat'], from_stop_coord['stop_lon'],
                                                                                        to_stop_coord['stop_lat'], to_stop_coord['stop_lon'])
@@ -638,10 +661,10 @@ def transfers2(tables, static_feed, trip_update_feed, alert_feed, vehicle_positi
                             new_row['tranfer_type'] = 0
                             new_row['min_transfer_time'] = distance_time_result['duration']
                             new_row['transfer_dist'] = distance_time_result['distance']
-                            tables["Transfers2"] = tables["Transfers2"].append(pd.Series(new_row), ignore_index=True)
+                            tables["Transfers"] = tables["Transfers"].append(pd.Series(new_row), ignore_index=True)
 
-    helper.write_table(tables, "Transfers2")
-    print "SUCCESS with Transfers2"
+    helper.write_table(tables, "Transfers")
+    print "SUCCESS with Transfers"
 
 def gps_fixes(tables, static_feed, trip_update_feed, alert_feed, vehicle_position_feed, agency_id, trip2pattern):
     columns = ['agency_id', 'veh_id', 'RecordedDate', 'RecordedTime', 'UTC_at_date', 'latitude',
@@ -669,9 +692,14 @@ def transit_eta(tables, static_feed, trip_update_feed, alert_feed, vehicle_posit
                'veh_speed', 'veh_location_time', 'route_short_name', 'route_dir', 'day', 'run',
                'pattern_id', 'stop_id', 'seq', 'ETA']
 
-
+    try:
+       login = {'host':"localhost", 'user':"root",
+                         'passwd':"root", 'db': "TrafficTransit"}
+       run_pattern_df = helper.sql2df('RunPattern', login)
+    except Exception as e:
+        print e
     tables['TransitETA'] = pd.DataFrame()
-    for entity in trip_update_feed:
+    for entity in trip_update_feed.entity:
         new_row = {}
         new_row['agency_id'] = agency_id
         new_row['RecordedDate'] = str(datetime.datetime.now().strftime('%Y-%m-%d'))
@@ -683,13 +711,13 @@ def transit_eta(tables, static_feed, trip_update_feed, alert_feed, vehicle_posit
 
         #VTA and BART are in Bay area so time is the same
         new_row['veh_location_time'] =  str(datetime.datetime.now().strftime('%H:%M:%S'))
-
-        #Get a Run Pattern Entry for each entity
-        runPattern_entry = tables['RunPattern'].loc[tables['RunPattern']['trip_id'] == entity.vehicle.trip.trip_id].iloc[0]
-        new_row['route_short_name'] = runPattern_entry['route_short_name']
-        new_row['day'] = runPattern_entry['day']
-        new_row['run'] = runPattern_entry['run']
-        new_row['pattern_id'] = runPattern_entry['pattern_id']
-        new_row['route_dir'] = runPattern_entry['route_dir']
+        # new_row['route_short_name'] = runPattern_entry['route_short_name']
+        # new_row['day'] = runPattern_entry['day']
+        # new_row['run'] = runPattern_entry['run']
+        # new_row['pattern_id'] = runPattern_entry['pattern_id']
+        # new_row['route_dir'] = runPattern_entry['route_dir']
         new_row['stop_id'] = entity.vehicle.stop_id
         new_row['seq'] = entity.vehicle.current_stop_sequence
+        tables["TransitETA"] = tables["TransitETA"].append(pd.Series(new_row), ignore_index=True)
+    helper.write_table(tables, "TransitETA")
+    print "SUCCESS with TransitETA"
